@@ -1,43 +1,38 @@
 #!/usr/bin/env bash
 
-# ------------------------------------------------------------
-# Safe mode for both bash and zsh
-# ------------------------------------------------------------
-# We can't use "set -e" because sourcing + "exit" kills the shell.
-# Instead, we manually handle failures.
-
+# Safe exit helper (won't close terminal)
 safe_exit() {
-  # Works even when sourced: use return if possible, else exit.
   return 1 2>/dev/null || exit 1
 }
 
-# Detect whether the script is being sourced
+# Detect if script is sourced (works in bash and zsh)
 is_sourced() {
-  # bash
-  if [ -n "${BASH_SOURCE-}" ]; then
-    [ "${BASH_SOURCE[0]}" != "${0}" ]
   # zsh
-  elif [ -n "${ZSH_EVAL_CONTEXT-}" ]; then
+  if [ -n "${ZSH_EVAL_CONTEXT-}" ]; then
     [[ $ZSH_EVAL_CONTEXT == *:file ]]
+  # bash
+  elif [ -n "${BASH_SOURCE-}" ]; then
+    [ "${BASH_SOURCE[0]}" != "${0}" ]
   else
     false
   fi
 }
 
+# Only warn if actually executed, not sourced
 if ! is_sourced; then
   echo "⚠️  This script must be sourced, not executed."
   echo "   Run:  source ./install.sh"
   safe_exit
 fi
 
-# ------------------------------------------------------------
+# -------------------------------------------------------------------
 # THREADS_FILE setup
-# ------------------------------------------------------------
+# -------------------------------------------------------------------
 if [ -n "${THREADS_FILE-}" ]; then
-  echo "THREADS_FILE is already set to '$THREADS_FILE'. Skipping setup."
+  echo "THREADS_FILE is already set to '$THREADS_FILE'."
 else
   DEFAULT_PATH="$HOME/Documents/Obsidian Vault/Threads/threads.md"
-  read -r "?THREADS_FILE is not set. Do you want to set it to '$DEFAULT_PATH'? [y/N] " RESP
+  read -r "?THREADS_FILE is not set. Set it to '$DEFAULT_PATH'? [y/N] " RESP
   if [[ "$RESP" =~ ^[Yy]$ ]]; then
     VAULT_DIR="$HOME/Documents/Obsidian Vault"
     THREADS_DIR="$VAULT_DIR/Threads"
@@ -52,21 +47,31 @@ else
 
     export THREADS_FILE="$DEFAULT_PATH"
     echo "THREADS_FILE set to '$THREADS_FILE' for this session."
-
-    # Persist if not already present
-    if ! grep -q 'export THREADS_FILE=' "$HOME/.zshrc"; then
-      echo "export THREADS_FILE=\"$DEFAULT_PATH\"" >> "$HOME/.zshrc"
-      echo "Added THREADS_FILE to ~/.zshrc"
-    fi
   else
     echo "THREADS_FILE will not be set."
   fi
 fi
 
-# ------------------------------------------------------------
+# -------------------------------------------------------------------
+# Ask to add THREADS_FILE to ~/.zshrc
+# -------------------------------------------------------------------
+if [ -n "${THREADS_FILE-}" ]; then
+  if grep -q 'export THREADS_FILE=' "$HOME/.zshrc"; then
+    echo "THREADS_FILE already found in ~/.zshrc. Skipping."
+  else
+    read -r "?Would you like to permanently add THREADS_FILE to ~/.zshrc? [y/N] " RESP_ADD
+    if [[ "$RESP_ADD" =~ ^[Yy]$ ]]; then
+      echo "export THREADS_FILE=\"$THREADS_FILE\"" >> "$HOME/.zshrc"
+      echo "Added THREADS_FILE to ~/.zshrc"
+    else
+      echo "Skipping addition to ~/.zshrc."
+    fi
+  fi
+fi
+
+# -------------------------------------------------------------------
 # Repo setup
-# ------------------------------------------------------------
-# zsh vs bash portable path resolution
+# -------------------------------------------------------------------
 if [ -n "${ZSH_VERSION-}" ]; then
   REPO_DIR="$(cd "$(dirname "${(%):-%x}")" && pwd)"
 else
@@ -81,7 +86,6 @@ echo "Source bin dir: $BIN_DIR"
 echo "Target bin dir: $TARGET_BIN"
 
 mkdir -p "$TARGET_BIN"
-
 chmod +x "${BIN_DIR}/tt-add" "${BIN_DIR}/tt-list" "${BIN_DIR}/tt-done"
 
 for f in tt-add tt-list tt-done; do
@@ -95,7 +99,6 @@ for f in tt-add tt-list tt-done; do
   echo "Linked $src -> $dest"
 done
 
-# PATH check
 case ":$PATH:" in
   *:"$TARGET_BIN":*)
     echo "✅ $TARGET_BIN is already in PATH."
