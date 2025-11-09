@@ -1,12 +1,12 @@
 import os
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 DEFAULT_THREADS_FILE = os.path.expanduser("~/threads.md")
 CONFIG_FILE = os.path.expanduser("~/.threadstrc")
 
 
-def parse_config_file() -> str | None:
+def parse_config_file() -> Optional[str]:
     if not os.path.exists(CONFIG_FILE):
         return None
 

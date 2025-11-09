@@ -16,14 +16,16 @@
 7. In the configuration panel, set:
    - **Shell Script**:
      ```bash
-     /usr/bin/env tt-add
+     cd "/Users/cohen/Documents/threadtracker"
+     THREADS_FILE="$HOME/Documents/Obsidian Vault/Threads/threads.md" && PYTHONPATH=. /Users/cohen/.local/bin/tt-add # Replace with the relevant paths
      ```
    - (Optional) Set "Show HUD Overlay" or notification if you want feedback.
 
 8. Repeat the process for a second command, e.g. `⌃⌥L`. In the configuration panel, set:
    - **Shell Script**:
      ```bash
-     /usr/bin/env tt-list
+     THREADS_FILE="$HOME/Documents/Obsidian Vault/Threads/threads.md" && PYTHONPATH=. /Users/cohen/.local/bin/tt-add # Replace with the relevant paths
+
      open "obsidian://open?vault=Obsidian%20Vault&file=Threads/threads" # This is optional, include if you use Obsidian
      ```
    - (Optional) Set "Show HUD Overlay" or notification if you want feedback.
