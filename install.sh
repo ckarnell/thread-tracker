@@ -3,10 +3,10 @@ set -euo pipefail
 
 # THREADS_FILE setup logic
 if [ -n "${THREADS_FILE-}" ]; then
-  echo "THREADS_FILE is already set to '$THREADS_FILE'. Skipping THREADS_FILE setup."
+  echo "THREADS_FILE is already set to '$THREADS_FILE'. Skipping setup."
 else
-  DEFAULT_THREADS_FILE="$HOME/Documents/Obsidian Vault/Threads/threads.md"
-  read -p "THREADS_FILE is not set. Do you want to set it to '$DEFAULT_THREADS_FILE'? [y/N] " RESP
+  THREADS_FILE="$HOME/Documents/Obsidian Vault/Threads/threads.md"
+  read -p "THREADS_FILE is not set. Do you want to set it to '$THREADS_FILE'? [y/N] " RESP
   if [[ "$RESP" =~ ^[Yy]$ ]]; then
     if [ ! -d "$HOME/Documents/Obsidian Vault" ]; then
       echo "Error: Directory '$HOME/Documents/Obsidian Vault' does not exist. Please create it and rerun the script."
@@ -16,11 +16,11 @@ else
       mkdir -p "$HOME/Documents/Obsidian Vault/Threads"
       echo "Created directory '$HOME/Documents/Obsidian Vault/Threads'."
     fi
-    if [ ! -f "$DEFAULT_THREADS_FILE" ]; then
-      touch "$DEFAULT_THREADS_FILE"
-      echo "Created file '$DEFAULT_THREADS_FILE'."
+    if [ ! -f "$THREADS_FILE" ]; then
+      touch "$THREADS_FILE"
+      echo "Created file '$THREADS_FILE'."
     fi
-    echo "export THREADS_FILE=\"$DEFAULT_THREADS_FILE\"" >> "$HOME/.zshrc"
+    echo "export THREADS_FILE=\"$THREADS_FILE\"" >> "$HOME/.zshrc"
     echo "THREADS_FILE set and added to ~/.zshrc."
   else
     echo "THREADS_FILE will not be set."
@@ -49,7 +49,6 @@ for f in tt-add tt-list tt-done; do
   fi
   ln -s "${src}" "${dest}"
   echo "Linked ${src} -> ${dest}"
-
 done
 
 # Suggest PATH update if needed
@@ -69,3 +68,4 @@ echo "Done. Try:"
 echo "  tt-add   # capture a thread"
 echo "  tt-list  # list open threads"
 echo "  tt-done 1  # mark the first open thread done"
+

@@ -20,7 +20,15 @@
      ```
    - (Optional) Set "Show HUD Overlay" or notification if you want feedback.
 
-8. (Optional) Name your shortcut, e.g. `Thread Capture`.
+8. Repeat the process for a second command, e.g. `⌃⌥L`. In the configuration panel, set:
+   - **Shell Script**:
+     ```bash
+     /usr/bin/env tt-list
+     open "obsidian://open?vault=Obsidian%20Vault&file=Threads/threads" # This is optional, include if you use Obsidian
+     ```
+   - (Optional) Set "Show HUD Overlay" or notification if you want feedback.
+
+9. (Optional) Name your shortcut, e.g. `Thread Capture`.
 
 Now, any time you're in ChatGPT, terminal, email, Obsidian, etc., hit your hotkey:
 
