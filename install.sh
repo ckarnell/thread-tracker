@@ -1,6 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# THREADS_FILE setup logic
+if [ -n "${THREADS_FILE-}" ]; then
+  echo "THREADS_FILE is already set to '$THREADS_FILE'. Skipping THREADS_FILE setup."
+else
+  DEFAULT_THREADS_FILE="$HOME/Documents/Obsidian Vault/Threads/threads.md"
+  read -p "THREADS_FILE is not set. Do you want to set it to '$DEFAULT_THREADS_FILE'? [y/N] " RESP
+  if [[ "$RESP" =~ ^[Yy]$ ]]; then
+    if [ ! -d "$HOME/Documents/Obsidian Vault" ]; then
+      echo "Error: Directory '$HOME/Documents/Obsidian Vault' does not exist. Please create it and rerun the script."
+      exit 1
+    fi
+    if [ ! -d "$HOME/Documents/Obsidian Vault/Threads" ]; then
+      mkdir -p "$HOME/Documents/Obsidian Vault/Threads"
+      echo "Created directory '$HOME/Documents/Obsidian Vault/Threads'."
+    fi
+    if [ ! -f "$DEFAULT_THREADS_FILE" ]; then
+      touch "$DEFAULT_THREADS_FILE"
+      echo "Created file '$DEFAULT_THREADS_FILE'."
+    fi
+    echo "export THREADS_FILE=\"$DEFAULT_THREADS_FILE\"" >> "$HOME/.zshrc"
+    echo "THREADS_FILE set and added to ~/.zshrc."
+  else
+    echo "THREADS_FILE will not be set."
+  fi
+fi
+
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="$REPO_DIR/bin"
 TARGET_BIN="${HOME}/.local/bin"
