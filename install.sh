@@ -28,7 +28,7 @@ done
 
 # Suggest PATH update if needed
 case ":$PATH:" in
-  *":"${TARGET_BIN}":*)
+  *:"${TARGET_BIN}":*)
     echo "✅ ${TARGET_BIN} is already in PATH."
     ;;
   *)
