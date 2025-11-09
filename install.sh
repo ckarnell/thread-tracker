@@ -1,71 +1,118 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
-# THREADS_FILE setup logic
+# ------------------------------------------------------------
+# Safe mode for both bash and zsh
+# ------------------------------------------------------------
+# We can't use "set -e" because sourcing + "exit" kills the shell.
+# Instead, we manually handle failures.
+
+safe_exit() {
+  # Works even when sourced: use return if possible, else exit.
+  return 1 2>/dev/null || exit 1
+}
+
+# Detect whether the script is being sourced
+is_sourced() {
+  # bash
+  if [ -n "${BASH_SOURCE-}" ]; then
+    [ "${BASH_SOURCE[0]}" != "${0}" ]
+  # zsh
+  elif [ -n "${ZSH_EVAL_CONTEXT-}" ]; then
+    [[ $ZSH_EVAL_CONTEXT == *:file ]]
+  else
+    false
+  fi
+}
+
+if ! is_sourced; then
+  echo "⚠️  This script must be sourced, not executed."
+  echo "   Run:  source ./install.sh"
+  safe_exit
+fi
+
+# ------------------------------------------------------------
+# THREADS_FILE setup
+# ------------------------------------------------------------
 if [ -n "${THREADS_FILE-}" ]; then
   echo "THREADS_FILE is already set to '$THREADS_FILE'. Skipping setup."
 else
-  THREADS_FILE="$HOME/Documents/Obsidian Vault/Threads/threads.md"
-  read -p "THREADS_FILE is not set. Do you want to set it to '$THREADS_FILE'? [y/N] " RESP
+  DEFAULT_PATH="$HOME/Documents/Obsidian Vault/Threads/threads.md"
+  read -r "?THREADS_FILE is not set. Do you want to set it to '$DEFAULT_PATH'? [y/N] " RESP
   if [[ "$RESP" =~ ^[Yy]$ ]]; then
-    if [ ! -d "$HOME/Documents/Obsidian Vault" ]; then
-      echo "Error: Directory '$HOME/Documents/Obsidian Vault' does not exist. Please create it and rerun the script."
-      exit 1
+    VAULT_DIR="$HOME/Documents/Obsidian Vault"
+    THREADS_DIR="$VAULT_DIR/Threads"
+
+    if [ ! -d "$VAULT_DIR" ]; then
+      echo "Error: Directory '$VAULT_DIR' does not exist. Please create it and rerun."
+      safe_exit
     fi
-    if [ ! -d "$HOME/Documents/Obsidian Vault/Threads" ]; then
-      mkdir -p "$HOME/Documents/Obsidian Vault/Threads"
-      echo "Created directory '$HOME/Documents/Obsidian Vault/Threads'."
+
+    mkdir -p "$THREADS_DIR"
+    [ -f "$DEFAULT_PATH" ] || { touch "$DEFAULT_PATH" && echo "Created file '$DEFAULT_PATH'."; }
+
+    export THREADS_FILE="$DEFAULT_PATH"
+    echo "THREADS_FILE set to '$THREADS_FILE' for this session."
+
+    # Persist if not already present
+    if ! grep -q 'export THREADS_FILE=' "$HOME/.zshrc"; then
+      echo "export THREADS_FILE=\"$DEFAULT_PATH\"" >> "$HOME/.zshrc"
+      echo "Added THREADS_FILE to ~/.zshrc"
     fi
-    if [ ! -f "$THREADS_FILE" ]; then
-      touch "$THREADS_FILE"
-      echo "Created file '$THREADS_FILE'."
-    fi
-    echo "export THREADS_FILE=\"$THREADS_FILE\"" >> "$HOME/.zshrc"
-    echo "THREADS_FILE set and added to ~/.zshrc."
   else
     echo "THREADS_FILE will not be set."
   fi
 fi
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ------------------------------------------------------------
+# Repo setup
+# ------------------------------------------------------------
+# zsh vs bash portable path resolution
+if [ -n "${ZSH_VERSION-}" ]; then
+  REPO_DIR="$(cd "$(dirname "${(%):-%x}")" && pwd)"
+else
+  REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
 BIN_DIR="$REPO_DIR/bin"
-TARGET_BIN="${HOME}/.local/bin"
+TARGET_BIN="$HOME/.local/bin"
 
-echo "Repo directory: ${REPO_DIR}"
-echo "Source bin dir: ${BIN_DIR}"
-echo "Target bin dir: ${TARGET_BIN}"
+echo "Repo directory: $REPO_DIR"
+echo "Source bin dir: $BIN_DIR"
+echo "Target bin dir: $TARGET_BIN"
 
-mkdir -p "${TARGET_BIN}"
+mkdir -p "$TARGET_BIN"
 
-# Make sure scripts are executable
 chmod +x "${BIN_DIR}/tt-add" "${BIN_DIR}/tt-list" "${BIN_DIR}/tt-done"
 
 for f in tt-add tt-list tt-done; do
-  src="${BIN_DIR}/${f}"
-  dest="${TARGET_BIN}/${f}"
-  if [ -L "${dest}" ] || [ -f "${dest}" ]; then
-    echo "Updating existing ${dest}"
-    rm -f "${dest}"
+  src="$BIN_DIR/$f"
+  dest="$TARGET_BIN/$f"
+  if [ -L "$dest" ] || [ -f "$dest" ]; then
+    echo "Updating existing $dest"
+    rm -f "$dest"
   fi
-  ln -s "${src}" "${dest}"
-  echo "Linked ${src} -> ${dest}"
+  ln -s "$src" "$dest"
+  echo "Linked $src -> $dest"
 done
 
-# Suggest PATH update if needed
+# PATH check
 case ":$PATH:" in
-  *:"${TARGET_BIN}":*)
-    echo "✅ ${TARGET_BIN} is already in PATH."
+  *:"$TARGET_BIN":*)
+    echo "✅ $TARGET_BIN is already in PATH."
     ;;
   *)
-    echo "⚠️  ${TARGET_BIN} is not in your PATH."
-    echo "   Add this line to your shell config (e.g. ~/.zshrc):"
+    echo "⚠️  $TARGET_BIN is not in your PATH."
+    echo "   Add this line to your ~/.zshrc:"
     echo "     export PATH=\"\$HOME/.local/bin:\$PATH\""
     ;;
 esac
 
 echo
-echo "Done. Try:"
-echo "  tt-add   # capture a thread"
-echo "  tt-list  # list open threads"
+echo "✅ Setup complete."
+echo "THREADS_FILE is currently: $THREADS_FILE"
+echo
+echo "Try:"
+echo "  tt-add     # capture a thread"
+echo "  tt-list    # list open threads"
 echo "  tt-done 1  # mark the first open thread done"
 
