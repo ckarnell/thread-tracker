@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+import os
+import sys
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+sys.path.insert(0, REPO_ROOT)
+
+from common import load_threads_lines, save_threads_lines, mark_open_thread_done  # type: ignore
+
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: tt-done N")
+        sys.exit(1)
+
+    try:
+        n = int(sys.argv[1])
+    except ValueError:
+        print("N must be an integer.")
+        sys.exit(1)
+
+    if n <= 0:
+        print("N must be >= 1.")
+        sys.exit(1)
+
+    lines = load_threads_lines()
+    new_lines, success = mark_open_thread_done(lines, n - 1)
+    if not success:
+        print(f"Could not mark thread #{n} as done (out of range?).")
+        sys.exit(1)
+
+    save_threads_lines(new_lines)
+    print(f"Marked thread #{n} as done.")
+
+
+if __name__ == "__main__":
+    main()
