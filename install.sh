@@ -88,7 +88,31 @@ echo "Target bin dir: $TARGET_BIN"
 mkdir -p "$TARGET_BIN"
 chmod +x "${BIN_DIR}/tt-add" "${BIN_DIR}/tt-list" "${BIN_DIR}/tt-done" "${BIN_DIR}/tt-combo"
 
+# -------------------------------------------------------------------
+# Check for existing implementations elsewhere in PATH and uninstall if found
+# -------------------------------------------------------------------
 for f in tt-add tt-list tt-done tt-combo; do
+  # Find all locations in PATH
+  existing_path="$(command -v "$f" 2>/dev/null || true)"
+  if [ -n "$existing_path" ] && [ "$existing_path" != "$TARGET_BIN/$f" ]; then
+    echo "⚠️  Found existing '$f' at: $existing_path"
+    read -r "?Do you want to remove $existing_path? (may require sudo) [y/N] " RESP_RM
+    if [[ "$RESP_RM" =~ ^[Yy]$ ]]; then
+      if rm -f "$existing_path" 2>/dev/null; then
+        echo "Removed $existing_path"
+      else
+        echo "Could not remove $existing_path without sudo. Trying with sudo..."
+        if sudo rm -f "$existing_path"; then
+          echo "Removed $existing_path with sudo"
+        else
+          echo "Failed to remove $existing_path. Please remove it manually."
+        fi
+      fi
+    else
+      echo "Skipping removal of $existing_path."
+    fi
+  fi
+
   src="$BIN_DIR/$f"
   dest="$TARGET_BIN/$f"
   if [ -L "$dest" ] || [ -f "$dest" ]; then

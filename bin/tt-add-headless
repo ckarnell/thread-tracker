@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+import argparse
+from datetime import datetime
+import sys
+from typing import Optional
+
+import os
+SCRIPT_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+sys.path.insert(0, REPO_ROOT)
+
+from common import ensure_threads_file_exists
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Add a thread entry in headless (LLM/automation) mode."
+    )
+    parser.add_argument("--desc", required=True, help="Thread description (required)")
+    parser.add_argument("--app", help="Application name (optional)")
+    parser.add_argument("--title", help="Window or document title (optional)")
+    parser.add_argument("--url", help="URL to associate with the thread (optional)")
+    args = parser.parse_args()
+
+    threads_file = ensure_threads_file_exists()
+
+    # Compose the thread entry
+    parts = []
+
+    def is_url(s: str) -> bool:
+        return s.startswith("http://") or s.startswith("https://")
+
+    desc_part = ""
+    if args.desc:
+        if is_url(args.desc):
+            desc_part = f"[**{args.desc}**]({args.desc})"
+        elif args.url:
+            desc_part = f"[**{args.desc}**]({args.url})"
+        else:
+            desc_part = f"**{args.desc}**"
+
+    if desc_part:
+        parts.append(desc_part)
+    if args.app:
+        parts.append(args.app)
+    if args.title:
+        parts.append(args.title)
+
+    summary = " — ".join([p for p in parts if p])
+    if not summary:
+        summary = "Unnamed thread"
+
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    entry = f"- [ ] {summary}  <!-- {timestamp} -->\n"
+
+    with open(threads_file, "a", encoding="utf-8") as f:
+        f.write(entry)
+
+    # Reorder threads file after adding
+    from common import reorder_threads_file
+    reorder_threads_file()
+
+    print(f"Added thread:\n  {summary}")
+    print(f"Stored in: {threads_file}")
+
+if __name__ == "__main__":
+    main()
