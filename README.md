@@ -14,6 +14,8 @@ Alfred or the terminal while you’re in the middle of another task.
 - **`tt-list`** prints the open checklist items (those that still contain `- [ ]`).
 - **`tt-done N`** converts the Nth open item to `- [x]` so you can keep a history of what
   was completed.
+- **`tt-combo`** shows open threads, allows you to close or open a new one, allows you to
+  open a link to a thread if applicable.
 - **`tjob` shell helper** (see [`shell/tjob.zsh`](shell/tjob.zsh)) wraps a long-running
   command, logging it to the threads file before execution.
 - Optional [Alfred workflow](alfred/create_workflow.md) so you can trigger `tt-add`
