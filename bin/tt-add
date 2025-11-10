@@ -8,7 +8,7 @@ from pathlib import Path
 
 # Ensure imports work when installed via symlink
 import sys
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, REPO_ROOT)
 
