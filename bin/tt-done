@@ -9,6 +9,18 @@ sys.path.insert(0, REPO_ROOT)
 
 from common import load_threads_lines, save_threads_lines, mark_open_thread_done  # type: ignore
 
+import re
+
+def extract_description(content):
+    # Match [**desc**](url) or **desc**
+    m = re.match(r"\[\*\*(.*?)\*\*\]\([^)]+\)", content)
+    if m:
+        return m.group(1)
+    m = re.match(r"\*\*(.*?)\*\*", content)
+    if m:
+        return m.group(1)
+    return None
+
 def get_open_threads(lines):
     open_indices = []
     open_tasks = []
@@ -20,8 +32,13 @@ def get_open_threads(lines):
                 content = content[:content.index("<!--")].strip()
             elif "<!--" in content:
                 content = content[:content.index("<!--")].strip()
+            desc = extract_description(content)
+            if desc:
+                display = desc
+            else:
+                display = content
             open_indices.append(i)
-            open_tasks.append(content)
+            open_tasks.append(display)
     return open_indices, open_tasks
 
 def prompt_for_done_task(open_tasks):
