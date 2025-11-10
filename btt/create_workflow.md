@@ -17,7 +17,7 @@
    - **Shell Script**:
      ```bash
      cd "/Users/cohen/Documents/threadtracker"
-     PYTHONPATH=. THREADS_FILE="$HOME/Documents/Obsidian Vault/Threads/threads.md" /Users/cohen/.local/bin/tt-add # Replace with the relevant paths
+     PYTHONPATH=. THREADS_FILE="$HOME/Documents/Obsidian Vault/Threads/threads.md" /Users/cohen/.local/bin/tt-add # Replace with the relevant paths. DON'T USE A KEY CORD THAT ALREADY EXISTS IN THE TERMINAL, e.g. don't use control+t
      ```
    - (Optional) Set "Show HUD Overlay" or notification if you want feedback.
 
