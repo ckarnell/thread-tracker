@@ -31,6 +31,9 @@ def main():
         sys.exit(1)
 
     save_threads_lines(new_lines)
+    # Reorder threads file after marking as done
+    from common import reorder_threads_file  # type: ignore
+    reorder_threads_file()
     print(f"Marked thread #{n} as done.")
 
 

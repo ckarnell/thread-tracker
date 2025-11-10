@@ -6,25 +6,34 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, REPO_ROOT)
 
-from common import ensure_threads_file_exists, load_threads_lines, get_open_thread_indices  # type: ignore
-
+from common import load_threads_lines  # type: ignore
 
 def main():
     lines = load_threads_lines()
-    open_indices = get_open_thread_indices(lines)
+    section = None
+    count = 0
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "Open:":
+            section = "open"
+            count = 0
+            print("Open:")
+        elif stripped == "Closed:":
+            section = "closed"
+            count = 0
+            print("Closed:")
+        elif stripped.startswith("- [ ]") or stripped.startswith("- [x]"):
+            count += 1
+            # Remove checkbox and timestamp for display
+            content = stripped[5:].strip()
+            if "<!--" in content:
+                content = content[:content.index("<!--")].strip()
+            print(f"{count}. {content}")
+        else:
+            # Print (none) or blank lines as-is
+            print(line, end="")
 
-    if not open_indices:
-        print("No open threads.")
-        return
-
-    print("Open threads:")
-    for idx, line_idx in enumerate(open_indices, start=1):
-        line = lines[line_idx].strip()
-        # Strip markdown checkbox
-        if line.startswith("- [ ]"):
-            line = line[5:].strip()
-        print(f"{idx}. {line}")
-
+    print("\nType tt-done N to mark thread N as done.")
 
 if __name__ == "__main__":
     main()

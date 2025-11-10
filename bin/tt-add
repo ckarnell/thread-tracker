@@ -145,6 +145,10 @@ def main():
     with open(threads_file, "a", encoding="utf-8") as f:
         f.write(entry)
 
+    # Reorder threads file after adding
+    from common import reorder_threads_file  # type: ignore
+    reorder_threads_file()
+
     print(f"Added thread:\n  {summary}")
     print(f"Stored in: {threads_file}")
 

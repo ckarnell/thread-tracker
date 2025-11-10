@@ -86,3 +86,74 @@ def mark_open_thread_done(lines: List[str], open_index: int) -> Tuple[List[str],
 
     lines[line_idx] = line.replace("- [ ]", "- [x]", 1)
     return lines, True
+
+# --- New logic for parsing, sorting, and reordering threads ---
+
+import re
+from datetime import datetime
+
+THREAD_LINE_RE = re.compile(r"^(- \[( |x)\] .*)<!-- (.*?) -->\s*$")
+
+def parse_thread_line(line: str) -> Tuple[bool, Optional[datetime], str]:
+    """
+    Returns (is_open, timestamp, line) for a thread line, or (None, None, line) if not a thread line.
+    """
+    m = THREAD_LINE_RE.match(line.strip())
+    if not m:
+        return (None, None, line)
+    is_open = "[ ]" in m.group(1)
+    try:
+        ts = datetime.fromisoformat(m.group(3))
+    except Exception:
+        ts = None
+    return (is_open, ts, line)
+
+def split_and_sort_threads(lines: List[str]) -> Tuple[list, list]:
+    """
+    Returns (open_thread_lines, closed_thread_lines), both sorted by timestamp.
+    Only thread lines are included; all section labels and non-thread lines are ignored.
+    """
+    open_threads = []
+    closed_threads = []
+    for line in lines:
+        is_open, ts, orig = parse_thread_line(line)
+        if is_open is None:
+            continue
+        elif is_open:
+            open_threads.append((ts, orig))
+        else:
+            closed_threads.append((ts, orig))
+    open_threads.sort(key=lambda x: (x[0] or datetime.min))
+    closed_threads.sort(key=lambda x: (x[0] or datetime.min))
+    return [l for _, l in open_threads], [l for _, l in closed_threads]
+
+def reorder_threads_file():
+    """
+    Reads the file, extracts all thread lines, sorts and groups them, and rewrites the file
+    with a single 'Open:' and 'Closed:' section. All old section labels and non-thread lines are removed.
+    """
+    lines = load_threads_lines()
+    open_threads, closed_threads = split_and_sort_threads(lines)
+    new_lines = []
+
+    new_lines.append("Open:\n")
+    if open_threads:
+        for line in open_threads:
+            l = line if line.endswith('\n') else line+'\n'
+            new_lines.append(l)
+    else:
+        new_lines.append("  (none)\n")
+    new_lines.append("\n")
+
+    new_lines.append("Closed:\n")
+    if closed_threads:
+        for line in closed_threads:
+            l = line if line.endswith('\n') else line+'\n'
+            new_lines.append(l)
+    else:
+        new_lines.append("  (none)\n")
+
+    if not new_lines[-1].endswith('\n'):
+        new_lines[-1] += '\n'
+
+    save_threads_lines(new_lines)
