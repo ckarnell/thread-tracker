@@ -29,9 +29,17 @@ def extract_description(content):
         return m.group(1)
     return None
 
+def extract_link(content):
+    # Match [**desc**](url)
+    m = re.match(r"\[\*\*.*?\*\*\]\(([^)]+)\)", content)
+    if m:
+        return m.group(1)
+    return None
+
 def get_open_threads(lines):
     open_indices = []
     open_tasks = []
+    open_links = []
     for i, line in enumerate(lines):
         if "- [ ]" in line:
             # Remove checkbox and timestamp for display
@@ -39,15 +47,19 @@ def get_open_threads(lines):
             if "<!--" in content:
                 content = content[:content.index("<!--")].strip()
             desc = extract_description(content)
+            link = extract_link(content)
             if desc:
                 display = desc
             else:
                 display = content
+            if link:
+                display = f"{display} 🔗"
             open_indices.append(i)
             open_tasks.append(display)
-    return open_indices, open_tasks
+            open_links.append(link)
+    return open_indices, open_tasks, open_links
 
-def prompt_combo(open_tasks) -> Optional[str]:
+def prompt_combo(open_tasks, open_links) -> Optional[str]:
     if not open_tasks:
         script = '''
         set dialogResult to display dialog "No open threads. Enter a new thread description:" default answer "" buttons {"Add", "Cancel"} default button "Add"
@@ -59,8 +71,12 @@ def prompt_combo(open_tasks) -> Optional[str]:
         '''
     else:
         numbered = "\n".join(f"{i+1}. {task}" for i, task in enumerate(open_tasks))
+        has_links = any(open_links)
+        extra = ""
+        if has_links:
+            extra = "\\nType lN (e.g. l2) to open the link for item N (with 🔗)."
         script = f'''
-        set dialogResult to display dialog "Open threads:\\n\\n{numbered}\\n\\nEnter a number to mark a thread as done, or type a new thread description to add it:" default answer "" buttons {{"OK", "Cancel"}} default button "OK"
+        set dialogResult to display dialog "Open threads:\\n\\n{numbered}\\n\\nEnter a number to mark a thread as done, or type a new thread description to add it.{extra}" default answer "" buttons {{"OK", "Cancel"}} default button "OK"
         if button returned of dialogResult is "Cancel" then
             return "__CANCEL__"
         else
@@ -190,16 +206,31 @@ def add_thread(desc: str):
     print(f"Added thread:\n  {summary}")
     print(f"Stored in: {threads_file}")
 
+import webbrowser
+
 def main():
     lines = load_threads_lines()
-    open_indices, open_tasks = get_open_threads(lines)
-    user_input: Optional[str] = prompt_combo(open_tasks)
+    open_indices, open_tasks, open_links = get_open_threads(lines)
+    user_input: Optional[str] = prompt_combo(open_tasks, open_links)
     if user_input is None or user_input.strip() == "":
         print("Canceled.")
         sys.exit(0)
     user_input = user_input.strip()
     print(f"User input: {user_input}")
-    if user_input.isdigit():
+    # Check for lN pattern to open link
+    if user_input.lower().startswith("l") and user_input[1:].isdigit():
+        n = int(user_input[1:])
+        if n <= 0 or n > len(open_indices):
+            print(f"Number must be between 1 and {len(open_indices)}.")
+            sys.exit(1)
+        link = open_links[n - 1]
+        if link:
+            print(f"Opening link for item {n}: {link}")
+            webbrowser.open(link)
+        else:
+            print(f"No link attached to item {n}.")
+        sys.exit(0)
+    elif user_input.isdigit():
         n = int(user_input)
         if n <= 0 or n > len(open_indices):
             print(f"Number must be between 1 and {len(open_indices)}.")
