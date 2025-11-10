@@ -261,6 +261,23 @@ def main():
         if n <= 0 or n > len(open_indices):
             print(f"Number must be between 1 and {len(open_indices)}.")
             sys.exit(1)
+        # Ask for confirmation before marking as done
+        confirm_script = f'''
+        set dialogResult to display dialog "Are you sure you want to mark item #{n} as done?\\n\\n{open_tasks[n-1]}" buttons {{"Yes", "No"}} default button "Yes"
+        if button returned of dialogResult is "Yes" then
+            return "YES"
+        else
+            return "NO"
+        end if
+        '''
+        confirm_result = subprocess.run(
+            ["osascript", "-e", confirm_script],
+            capture_output=True,
+            text=True,
+        )
+        if confirm_result.returncode != 0 or confirm_result.stdout.strip() != "YES":
+            print("Canceled marking as done.")
+            sys.exit(0)
         new_lines, success = mark_open_thread_done(lines, n - 1)
         if not success:
             print(f"Could not mark thread #{n} as done (out of range?).")
