@@ -267,9 +267,12 @@ def main():
         if n <= 0 or n > len(open_indices):
             print(f"Number must be between 1 and {len(open_indices)}.")
             sys.exit(1)
-        # Ask for confirmation before marking as done
+        # Escape for AppleScript dialog
+        def escape_applescript(s):
+            return s.replace("\\", "\\\\").replace('"', '\\"')
+        task_display = escape_applescript(open_tasks[n-1])
         confirm_script = f'''
-        set dialogResult to display dialog "Are you sure you want to mark item #{n} as done?\\n\\n{open_tasks[n-1]}" buttons {{"Yes", "No"}} default button "Yes"
+        set dialogResult to display dialog "Are you sure you want to mark item #{n} as done?\\n\\n{task_display}" buttons {{"Yes", "No"}} default button "Yes"
         if button returned of dialogResult is "Yes" then
             return "YES"
         else
@@ -281,6 +284,8 @@ def main():
             capture_output=True,
             text=True,
         )
+        print("DEBUG: confirm_result.returncode:", confirm_result.returncode)
+        print("DEBUG: confirm_result.stdout:", repr(confirm_result.stdout.strip()))
         if confirm_result.returncode != 0 or confirm_result.stdout.strip() != "YES":
             print("Canceled marking as done.")
             sys.exit(0)
