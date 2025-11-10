@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+import os
+import sys
+import subprocess
+from typing import Optional
+from datetime import datetime
+
+SCRIPT_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+sys.path.insert(0, REPO_ROOT)
+
+from common import (
+    load_threads_lines,
+    save_threads_lines,
+    mark_open_thread_done,
+    ensure_threads_file_exists,
+    reorder_threads_file,
+)
+
+import re
+
+def extract_description(content):
+    # Match [**desc**](url) or **desc**
+    m = re.match(r"\[\*\*(.*?)\*\*\]\([^)]+\)", content)
+    if m:
+        return m.group(1)
+    m = re.match(r"\*\*(.*?)\*\*", content)
+    if m:
+        return m.group(1)
+    return None
+
+def get_open_threads(lines):
+    open_indices = []
+    open_tasks = []
+    for i, line in enumerate(lines):
+        if "- [ ]" in line:
+            # Remove checkbox and timestamp for display
+            content = line.strip()[5:].strip()
+            if "<!--" in content:
+                content = content[:content.index("<!--")].strip()
+            desc = extract_description(content)
+            if desc:
+                display = desc
+            else:
+                display = content
+            open_indices.append(i)
+            open_tasks.append(display)
+    return open_indices, open_tasks
+
+def prompt_combo(open_tasks) -> Optional[str]:
+    if not open_tasks:
+        script = '''
+        display dialog "No open threads. Enter a new thread description:" default answer "" buttons {"Add", "Cancel"} default button "Add"
+        if button returned of result is "Cancel" then
+            return "__CANCEL__"
+        end if
+        set userText to text returned of result
+        return userText
+        '''
+    else:
+        numbered = "\n".join(f"{i+1}. {task}" for i, task in enumerate(open_tasks))
+        script = f'''
+        display dialog "Open threads:\\n\\n{numbered}\\n\\nEnter a number to mark a thread as done, or type a new thread description to add it:" default answer "" buttons {{"OK", "Cancel"}} default button "OK"
+        if button returned of result is "Cancel" then
+            return "__CANCEL__"
+        end if
+        set userText to text returned of result
+        return userText
+        '''
+    result = subprocess.run(
+        ["osascript", "-e", script],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    out = result.stdout.strip()
+    if out == "__CANCEL__":
+        return None
+    return out
+
+def is_url(s: str) -> bool:
+    return s.startswith("http://") or s.startswith("https://")
+
+def add_thread(desc: str):
+    threads_file = ensure_threads_file_exists()
+    # Try to get front app and title for context (optional)
+    try:
+        import subprocess
+        script = r'''
+        tell application "System Events"
+            set frontApp to name of first process whose frontmost is true
+        end tell
+        tell application frontApp
+            if (count of windows) > 0 then
+                set winTitle to name of front window
+            else
+                set winTitle to ""
+            end if
+        end tell
+        return frontApp & "||" & winTitle
+        '''
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            raw = result.stdout.strip()
+            if "||" in raw:
+                app, title = raw.split("||", 1)
+                app = app.strip()
+                title = title.strip()
+            else:
+                app, title = raw.strip() or "unknown-app", ""
+        else:
+            app, title = "", ""
+    except Exception:
+        app, title = "", ""
+
+    url = ""
+    if app in {"Google Chrome", "Safari", "Arc"}:
+        try:
+            if app == "Google Chrome":
+                script = r'''
+                tell application "Google Chrome"
+                    if (count of windows) > 0 and (count of tabs of front window) > 0 then
+                        return URL of active tab of front window
+                    else
+                        return ""
+                    end if
+                end tell
+                '''
+            elif app == "Safari":
+                script = r'''
+                tell application "Safari"
+                    if (count of windows) > 0 and (count of tabs of front window) > 0 then
+                        return URL of current tab of front window
+                    else
+                        return ""
+                    end if
+                end tell
+                '''
+            elif app == "Arc":
+                script = r'''
+                tell application "Arc"
+                    if (count of windows) > 0 and (count of tabs of front window) > 0 then
+                        return URL of active tab of front window
+                    else
+                        return ""
+                    end if
+                end tell
+                '''
+            else:
+                script = ""
+            if script:
+                result = subprocess.run(
+                    ["osascript", "-e", script],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode == 0:
+                    url = result.stdout.strip()
+        except Exception:
+            url = ""
+
+    parts = []
+    desc_part = ""
+    if desc:
+        if is_url(desc):
+            desc_part = f"[**{desc}**]({desc})"
+        elif url:
+            desc_part = f"[**{desc}**]({url})"
+        else:
+            desc_part = f"**{desc}**"
+    if desc_part:
+        parts.append(desc_part)
+    if app:
+        parts.append(app)
+    if title:
+        parts.append(title)
+    summary = " — ".join([p for p in parts if p])
+    if not summary:
+        summary = "Unnamed thread"
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    entry = f"- [ ] {summary}  <!-- {timestamp} -->\n"
+    with open(threads_file, "a", encoding="utf-8") as f:
+        f.write(entry)
+    reorder_threads_file()
+    print(f"Added thread:\n  {summary}")
+    print(f"Stored in: {threads_file}")
+
+def main():
+    lines = load_threads_lines()
+    open_indices, open_tasks = get_open_threads(lines)
+    user_input: Optional[str] = prompt_combo(open_tasks)
+    if user_input is None or user_input.strip() == "":
+        print("Canceled.")
+        sys.exit(0)
+    user_input = user_input.strip()
+    if user_input.isdigit():
+        n = int(user_input)
+        if n <= 0 or n > len(open_indices):
+            print(f"Number must be between 1 and {len(open_indices)}.")
+            sys.exit(1)
+        new_lines, success = mark_open_thread_done(lines, n - 1)
+        if not success:
+            print(f"Could not mark thread #{n} as done (out of range?).")
+            sys.exit(1)
+        save_threads_lines(new_lines)
+        reorder_threads_file()
+        print(f"Marked thread #{n} as done.")
+    else:
+        add_thread(user_input)
+
+if __name__ == "__main__":
+    main()

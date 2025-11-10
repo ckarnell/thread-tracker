@@ -86,9 +86,9 @@ echo "Source bin dir: $BIN_DIR"
 echo "Target bin dir: $TARGET_BIN"
 
 mkdir -p "$TARGET_BIN"
-chmod +x "${BIN_DIR}/tt-add" "${BIN_DIR}/tt-list" "${BIN_DIR}/tt-done"
+chmod +x "${BIN_DIR}/tt-add" "${BIN_DIR}/tt-list" "${BIN_DIR}/tt-done" "${BIN_DIR}/tt-combo"
 
-for f in tt-add tt-list tt-done; do
+for f in tt-add tt-list tt-done tt-combo; do
   src="$BIN_DIR/$f"
   dest="$TARGET_BIN/$f"
   if [ -L "$dest" ] || [ -f "$dest" ]; then
@@ -118,4 +118,4 @@ echo "Try:"
 echo "  tt-add     # capture a thread"
 echo "  tt-list    # list open threads"
 echo "  tt-done 1  # mark the first open thread done"
-
+echo "  tt-combo   # add or complete a thread in one step"

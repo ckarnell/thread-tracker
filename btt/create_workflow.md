@@ -44,3 +44,29 @@ Then you can use:
 
 - `tt-list` in terminal to see your queue
 - `tt-done N` to mark them complete
+
+---
+
+## Unified Add/Done: `tt-combo`
+
+You can also use the new `tt-combo` command, which combines adding and completing threads in one step.
+
+- When triggered, it shows your open threads, numbered just like `tt-done`.
+- It prompts you:  
+  _"Enter a number to mark a thread as done, or type a new thread description to add it:"_
+- If you enter a number, that thread is marked as done.
+- If you enter a new description, it is added as a new thread (with app/window context, just like `tt-add`).
+- Pressing **Escape** or clicking **Cancel** will close the dialog without making changes.
+
+### Example BetterTouchTool Setup
+
+1. Add a new shortcut (e.g. `⌃⌥C`).
+2. Set the action to **"Execute Shell Script / Task"**.
+3. Use this shell script:
+   ```bash
+   cd "/Users/cohen/Documents/threadtracker"
+   PYTHONPATH=. THREADS_FILE="$HOME/Documents/Obsidian Vault/Threads/threads.md" /Users/cohen/.local/bin/tt-combo
+   ```
+4. (Optional) Set a HUD overlay or notification for feedback.
+
+Now you can add or complete threads with a single hotkey and dialog!
