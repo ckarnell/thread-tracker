@@ -123,8 +123,8 @@ def split_and_sort_threads(lines: List[str]) -> Tuple[list, list]:
             open_threads.append((ts, orig))
         else:
             closed_threads.append((ts, orig))
-    open_threads.sort(key=lambda x: (x[0] or datetime.min))
-    closed_threads.sort(key=lambda x: (x[0] or datetime.min))
+    open_threads.sort(key=lambda x: (x[0] or datetime.min), reverse=True)
+    closed_threads.sort(key=lambda x: (x[0] or datetime.min), reverse=True)
     return [l for _, l in open_threads], [l for _, l in closed_threads]
 
 def reorder_threads_file():
