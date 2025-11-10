@@ -36,6 +36,24 @@ def extract_link(content):
         return m.group(1)
     return None
 
+def format_age(ts_str):
+    try:
+        created = datetime.fromisoformat(ts_str)
+        now = datetime.now()
+        delta = now - created
+        total_minutes = int(delta.total_seconds() // 60)
+        if total_minutes < 60:
+            return f"{total_minutes}m"
+        total_hours = total_minutes // 60
+        rem_minutes = total_minutes % 60
+        if total_hours < 24:
+            return f"{total_hours}h {rem_minutes}m"
+        days = total_hours // 24
+        rem_hours = total_hours % 24
+        return f"{days}d {rem_hours}h {rem_minutes}m"
+    except Exception:
+        return ""
+
 def get_open_threads(lines):
     open_indices = []
     open_tasks = []
@@ -44,6 +62,10 @@ def get_open_threads(lines):
         if "- [ ]" in line:
             # Remove checkbox and timestamp for display
             content = line.strip()[5:].strip()
+            ts_str = None
+            if "<!--" in line:
+                ts_comment = line[line.index("<!--")+4:line.index("-->")].strip()
+                ts_str = ts_comment.split()[0]  # Should be ISO string
             if "<!--" in content:
                 content = content[:content.index("<!--")].strip()
             desc = extract_description(content)
@@ -54,6 +76,10 @@ def get_open_threads(lines):
                 display = content
             if link:
                 display = f"{display} 🔗"
+            if ts_str:
+                age = format_age(ts_str)
+                if age:
+                    display = f"{display} [{age}]"
             open_indices.append(i)
             open_tasks.append(display)
             open_links.append(link)
