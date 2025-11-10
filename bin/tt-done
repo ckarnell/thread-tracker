@@ -41,7 +41,9 @@ def get_open_threads(lines):
             open_tasks.append(display)
     return open_indices, open_tasks
 
-def prompt_for_done_task(open_tasks):
+from typing import Optional
+
+def prompt_for_done_task(open_tasks) -> Optional[str]:
     if not open_tasks:
         script = '''
         display dialog "No open tasks." buttons {"OK"} default button 1
@@ -52,7 +54,10 @@ def prompt_for_done_task(open_tasks):
     # Build the numbered list for display
     numbered = "\n".join(f"{i+1}. {task}" for i, task in enumerate(open_tasks))
     script = f'''
-    display dialog "Mark which task as done?\\n\\n{numbered}\\n\\n(Enter number, or leave blank to cancel)" default answer "" buttons {{"OK"}} default button 1
+    display dialog "Mark which task as done?\\n\\n{numbered}\\n\\n(Enter number, or leave blank to cancel)" default answer "" buttons {{"OK", "Cancel"}} default button 1
+    if button returned of result is "Cancel" then
+        return "__CANCEL__"
+    end if
     set userText to text returned of result
     return userText
     '''
@@ -63,13 +68,16 @@ def prompt_for_done_task(open_tasks):
     )
     if result.returncode != 0:
         return None
-    return result.stdout.strip()
+    out = result.stdout.strip()
+    if out == "__CANCEL__":
+        return None
+    return out
 
 def main():
     lines = load_threads_lines()
     open_indices, open_tasks = get_open_threads(lines)
 
-    user_input = prompt_for_done_task(open_tasks)
+    user_input: Optional[str] = prompt_for_done_task(open_tasks)
     if user_input is None or user_input.strip() == "":
         # No input or user cancelled
         sys.exit(0)
