@@ -4,6 +4,7 @@ import sys
 import subprocess
 from typing import Optional
 from datetime import datetime
+import webbrowser
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -96,7 +97,9 @@ def prompt_combo(open_tasks, open_links) -> Optional[str]:
         end if
         '''
     else:
-        numbered = "\n".join(f"{i+1}. {task}" for i, task in enumerate(open_tasks))
+        def escape_applescript(s):
+            return s.replace("\\", "\\\\").replace('"', '\\"')
+        numbered = "\n".join(f"{i+1}. {escape_applescript(task)}" for i, task in enumerate(open_tasks))
         has_links = any(open_links)
         extra = ""
         if has_links:
@@ -109,11 +112,15 @@ def prompt_combo(open_tasks, open_links) -> Optional[str]:
             return text returned of dialogResult
         end if
         '''
+    print("DEBUG: AppleScript being passed to osascript:\n", script)
     result = subprocess.run(
         ["osascript", "-e", script],
         capture_output=True,
         text=True,
     )
+    print("DEBUG: osascript returncode:", result.returncode)
+    print("DEBUG: osascript stdout:", result.stdout.strip())
+    print("DEBUG: osascript stderr:", result.stderr.strip())
     if result.returncode != 0:
         return None
     out = result.stdout.strip()
@@ -232,7 +239,6 @@ def add_thread(desc: str):
     print(f"Added thread:\n  {summary}")
     print(f"Stored in: {threads_file}")
 
-import webbrowser
 
 def main():
     lines = load_threads_lines()
