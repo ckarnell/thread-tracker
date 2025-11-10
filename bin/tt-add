@@ -2,6 +2,7 @@
 import os
 import subprocess
 from datetime import datetime
+from typing import Optional
 
 from pathlib import Path
 
@@ -83,9 +84,12 @@ def get_browser_url(app: str) -> str:
         return ""
     return result.stdout.strip()
 
-def prompt_description() -> str:
+def prompt_description() -> Optional[str]:
     script = r'''
-    display dialog "Thread description (optional):" default answer "" buttons {"OK"} default button 1
+    display dialog "Thread description (optional):" default answer "" buttons {"OK", "Cancel"} default button "OK"
+    if button returned of result is "Cancel" then
+        return "__CANCEL__"
+    end if
     set userText to text returned of result
     return userText
     '''
@@ -95,13 +99,19 @@ def prompt_description() -> str:
         text=True,
     )
     if result.returncode != 0:
-        return ""
-    return result.stdout.strip()
+        return None
+    out = result.stdout.strip()
+    if out == "__CANCEL__":
+        return None
+    return out
 
 def main():
     threads_file = ensure_threads_file_exists()
     app, title = get_front_app_and_title()
     desc = prompt_description()
+    if desc is None:
+        print("Add thread canceled.")
+        return
 
     url = ""
     if app in {"Google Chrome", "Safari", "Arc"}:
