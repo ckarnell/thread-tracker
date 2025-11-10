@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+import subprocess
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -8,23 +9,64 @@ sys.path.insert(0, REPO_ROOT)
 
 from common import load_threads_lines, save_threads_lines, mark_open_thread_done  # type: ignore
 
+def get_open_threads(lines):
+    open_indices = []
+    open_tasks = []
+    for i, line in enumerate(lines):
+        if "- [ ]" in line:
+            # Remove checkbox and timestamp for display
+            content = line.strip()[5:].strip()
+            if "<!--" in content:
+                content = content[:content.index("<!--")].strip()
+            elif "<!--" in content:
+                content = content[:content.index("<!--")].strip()
+            open_indices.append(i)
+            open_tasks.append(content)
+    return open_indices, open_tasks
+
+def prompt_for_done_task(open_tasks):
+    if not open_tasks:
+        script = '''
+        display dialog "No open tasks." buttons {"OK"} default button 1
+        '''
+        subprocess.run(["osascript", "-e", script])
+        return None
+
+    # Build the numbered list for display
+    numbered = "\n".join(f"{i+1}. {task}" for i, task in enumerate(open_tasks))
+    script = f'''
+    display dialog "Mark which task as done?\\n\\n{numbered}\\n\\n(Enter number, or leave blank to cancel)" default answer "" buttons {{"OK"}} default button 1
+    set userText to text returned of result
+    return userText
+    '''
+    result = subprocess.run(
+        ["osascript", "-e", script],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip()
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: tt-done N")
-        sys.exit(1)
+    lines = load_threads_lines()
+    open_indices, open_tasks = get_open_threads(lines)
+
+    user_input = prompt_for_done_task(open_tasks)
+    if user_input is None or user_input.strip() == "":
+        # No input or user cancelled
+        sys.exit(0)
 
     try:
-        n = int(sys.argv[1])
+        n = int(user_input)
     except ValueError:
-        print("N must be an integer.")
+        print("Input must be a number.")
         sys.exit(1)
 
-    if n <= 0:
-        print("N must be >= 1.")
+    if n <= 0 or n > len(open_indices):
+        print(f"Number must be between 1 and {len(open_indices)}.")
         sys.exit(1)
 
-    lines = load_threads_lines()
     new_lines, success = mark_open_thread_done(lines, n - 1)
     if not success:
         print(f"Could not mark thread #{n} as done (out of range?).")
@@ -35,7 +77,6 @@ def main():
     from common import reorder_threads_file  # type: ignore
     reorder_threads_file()
     print(f"Marked thread #{n} as done.")
-
 
 if __name__ == "__main__":
     main()
