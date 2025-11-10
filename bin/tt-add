@@ -13,7 +13,6 @@ sys.path.insert(0, REPO_ROOT)
 
 from common import ensure_threads_file_exists  # type: ignore
 
-
 def get_front_app_and_title() -> tuple[str, str]:
     script = r'''
     tell application "System Events"
@@ -41,6 +40,48 @@ def get_front_app_and_title() -> tuple[str, str]:
         return app.strip(), title.strip()
     return raw.strip() or "unknown-app", ""
 
+def get_browser_url(app: str) -> str:
+    # Returns the current tab URL for supported browsers, else ""
+    if app == "Google Chrome":
+        script = r'''
+        tell application "Google Chrome"
+            if (count of windows) > 0 and (count of tabs of front window) > 0 then
+                return URL of active tab of front window
+            else
+                return ""
+            end if
+        end tell
+        '''
+    elif app == "Safari":
+        script = r'''
+        tell application "Safari"
+            if (count of windows) > 0 and (count of tabs of front window) > 0 then
+                return URL of current tab of front window
+            else
+                return ""
+            end if
+        end tell
+        '''
+    elif app == "Arc":
+        script = r'''
+        tell application "Arc"
+            if (count of windows) > 0 and (count of tabs of front window) > 0 then
+                return URL of active tab of front window
+            else
+                return ""
+            end if
+        end tell
+        '''
+    else:
+        return ""
+    result = subprocess.run(
+        ["osascript", "-e", script],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return ""
+    return result.stdout.strip()
 
 def prompt_description() -> str:
     script = r'''
@@ -57,21 +98,43 @@ def prompt_description() -> str:
         return ""
     return result.stdout.strip()
 
-
 def main():
     threads_file = ensure_threads_file_exists()
     app, title = get_front_app_and_title()
     desc = prompt_description()
 
+    url = ""
+    if app in {"Google Chrome", "Safari", "Arc"}:
+        url = get_browser_url(app)
+
+    # Place desc at the beginning, and make it clickable if it's a link or if url is present
     parts = []
+
+    def is_url(s: str) -> bool:
+        return s.startswith("http://") or s.startswith("https://")
+
+    desc_part = ""
+    if desc:
+        if is_url(desc):
+            # desc is a URL, make it a clickable bolded link to itself
+            desc_part = f"[**{desc}**]({desc})"
+        elif url:
+            # desc is not a URL, but we have a url, make desc clickable to url
+            desc_part = f"[**{desc}**]({url})"
+        else:
+            # just bold the desc
+            desc_part = f"**{desc}**"
+
+    if desc_part:
+        parts.append(desc_part)
     if app:
         parts.append(app)
     if title:
         parts.append(title)
-    if desc:
-        parts.append(desc)
 
     summary = " — ".join([p for p in parts if p])
+
+    # No need to append url at the end, it's included in the clickable desc if present
 
     if not summary:
         summary = "Unnamed thread"
@@ -84,7 +147,6 @@ def main():
 
     print(f"Added thread:\n  {summary}")
     print(f"Stored in: {threads_file}")
-
 
 if __name__ == "__main__":
     main()
