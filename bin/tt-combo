@@ -131,6 +131,76 @@ def prompt_combo(open_tasks, open_links) -> Optional[str]:
 def is_url(s: str) -> bool:
     return s.startswith("http://") or s.startswith("https://")
 
+def focus_or_open_chrome_tab(url: str) -> bool:
+    """
+    Search all Chrome windows/tabs for a matching URL and focus it.
+    If not found, open a new tab with the URL.
+    Returns True if an existing tab was found and focused, False if a new tab was opened.
+    """
+    # AppleScript to search all Chrome windows and tabs for the URL
+    script = f'''
+    set targetURL to "{url}"
+    
+    tell application "Google Chrome"
+        set foundTab to false
+        set windowIndex to 0
+        set tabIndex to 0
+        
+        -- Search through all windows and tabs
+        repeat with w from 1 to (count of windows)
+            repeat with t from 1 to (count of tabs of window w)
+                if URL of tab t of window w is equal to targetURL then
+                    set foundTab to true
+                    set windowIndex to w
+                    set tabIndex to t
+                    exit repeat
+                end if
+            end repeat
+            if foundTab then exit repeat
+        end repeat
+        
+        -- If found, focus the window and tab
+        if foundTab then
+            set index of window windowIndex to 1
+            set active tab index of window windowIndex to tabIndex
+            activate
+            return "FOUND"
+        else
+            -- Not found, open new tab
+            activate
+            tell window 1 to make new tab with properties {{URL:targetURL}}
+            return "OPENED"
+        end if
+    end tell
+    '''
+    
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode == 0:
+            output = result.stdout.strip()
+            if output == "FOUND":
+                print(f"Found existing tab with URL: {url}")
+                return True
+            elif output == "OPENED":
+                print(f"Opened new tab with URL: {url}")
+                return False
+        else:
+            print(f"AppleScript error: {result.stderr}")
+            # Fallback to webbrowser
+            webbrowser.open(url)
+            return False
+    except Exception as e:
+        print(f"Error focusing/opening Chrome tab: {e}")
+        # Fallback to webbrowser
+        webbrowser.open(url)
+        return False
+
 def add_thread(desc: str):
     threads_file = ensure_threads_file_exists()
     # Try to get front app and title for context (optional)
@@ -257,8 +327,8 @@ def main():
             sys.exit(1)
         link = open_links[n - 1]
         if link:
-            print(f"Opening link for item {n}: {link}")
-            webbrowser.open(link)
+            print(f"Focusing or opening link for item {n}: {link}")
+            focus_or_open_chrome_tab(link)
         else:
             print(f"Focused Slack for item {n}.")
             subprocess.run(["osascript", "-e", 'tell application "Slack" to activate'])
