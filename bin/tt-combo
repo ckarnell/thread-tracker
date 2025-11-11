@@ -97,10 +97,13 @@ def prompt_combo(open_tasks, open_links) -> Optional[str]:
         end if
         '''
     else:
+        # Reverse order so newest is at the top
+        open_tasks_rev = list(reversed(open_tasks))
+        open_links_rev = list(reversed(open_links))
         def escape_applescript(s):
             return s.replace("\\", "\\\\").replace('"', '\\"')
-        numbered = "\n".join(f"{i+1}. {escape_applescript(task)}" for i, task in enumerate(open_tasks))
-        has_links = any(open_links)
+        numbered = "\n".join(f"{i+1}. {escape_applescript(task)}" for i, task in enumerate(open_tasks_rev))
+        has_links = any(open_links_rev)
         extra = ""
         if has_links:
             extra = "\\nType lN (e.g. l2) to open the link for item N (with 🔗)."
@@ -112,6 +115,9 @@ def prompt_combo(open_tasks, open_links) -> Optional[str]:
             return text returned of dialogResult
         end if
         '''
+        # Patch: also update open_tasks and open_links for downstream logic
+        open_tasks[:] = open_tasks_rev
+        open_links[:] = open_links_rev
     print("DEBUG: AppleScript being passed to osascript:\n", script)
     result = subprocess.run(
         ["osascript", "-e", script],
@@ -343,11 +349,11 @@ def main():
             return s.replace("\\", "\\\\").replace('"', '\\"')
         task_display = escape_applescript(open_tasks[n-1])
         confirm_script = f'''
-        set dialogResult to display dialog "Are you sure you want to mark item #{n} as done?\\n\\n{task_display}" buttons {{"Yes", "No"}} default button "Yes"
+        set dialogResult to display dialog "Are you sure you want to mark item #{n} as done?\\n\\n{task_display}" buttons {{"Yes", "Cancel"}} default button "Yes"
         if button returned of dialogResult is "Yes" then
             return "YES"
         else
-            return "NO"
+            return "CANCEL"
         end if
         '''
         confirm_result = subprocess.run(
