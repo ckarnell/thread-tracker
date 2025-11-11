@@ -75,6 +75,8 @@ def mark_open_thread_done(lines: List[str], open_index: int) -> Tuple[List[str],
     open_index is the Nth open thread (0-based among open threads).
     Returns (new_lines, success_flag).
     """
+    from datetime import datetime
+
     open_indices = get_open_thread_indices(lines)
     if open_index < 0 or open_index >= len(open_indices):
         return lines, False
@@ -84,7 +86,33 @@ def mark_open_thread_done(lines: List[str], open_index: int) -> Tuple[List[str],
     if "- [ ]" not in line:
         return lines, False
 
-    lines[line_idx] = line.replace("- [ ]", "- [x]", 1)
+    # Find existing HTML comment (timestamp or metadata)
+    import re
+    now_iso = datetime.now().isoformat(timespec="seconds")
+    m = re.search(r'<!--(.*?)-->', line)
+    if m:
+        meta = m.group(1).strip()
+        # Check if already has created/cleared fields
+        created = None
+        cleared = None
+        created_match = re.search(r'created:\s*([0-9T:\-]+)', meta)
+        if created_match:
+            created = created_match.group(1)
+        else:
+            # fallback: use whatever is in meta as created
+            created = meta.split(",")[0].strip()
+        # Compose new meta with both created and cleared
+        new_meta = f"created: {created}, cleared: {now_iso}"
+        # Replace the old meta with new meta
+        new_line = re.sub(r'<!--.*?-->', f'<!-- {new_meta} -->', line)
+    else:
+        # No existing meta, just add cleared time
+        new_line = line.rstrip('\n')
+        new_line += f" <!-- cleared: {now_iso} -->\n"
+
+    # Mark as done
+    new_line = new_line.replace("- [ ]", "- [x]", 1)
+    lines[line_idx] = new_line
     return lines, True
 
 # --- New logic for parsing, sorting, and reordering threads ---
@@ -94,37 +122,61 @@ from datetime import datetime
 
 THREAD_LINE_RE = re.compile(r"^(- \[( |x)\] .*)<!-- (.*?) -->\s*$")
 
-def parse_thread_line(line: str) -> Tuple[bool, Optional[datetime], str]:
+def parse_thread_line(line: str) -> Tuple[Optional[bool], Optional[datetime], str]:
     """
-    Returns (is_open, timestamp, line) for a thread line, or (None, None, line) if not a thread line.
+    Returns (is_open, sort_timestamp, line) for a thread line, or (None, None, line) if not a thread line.
+    For closed threads, sort_timestamp is the cleared time if present, else None.
+    For open threads, sort_timestamp is the created time if present, else None.
     """
     m = THREAD_LINE_RE.match(line.strip())
     if not m:
         return (None, None, line)
     is_open = "[ ]" in m.group(1)
-    try:
-        ts = datetime.fromisoformat(m.group(3))
-    except Exception:
-        ts = None
-    return (is_open, ts, line)
+    meta = m.group(3)
+    created = None
+    cleared = None
+    import re
+    from datetime import datetime
+    created_match = re.search(r'created:\s*([0-9T:\-]+)', meta)
+    if created_match:
+        try:
+            created = datetime.fromisoformat(created_match.group(1))
+        except Exception:
+            created = None
+    cleared_match = re.search(r'cleared:\s*([0-9T:\-]+)', meta)
+    if cleared_match:
+        try:
+            cleared = datetime.fromisoformat(cleared_match.group(1))
+        except Exception:
+            cleared = None
+    # For closed threads, use cleared time for sorting; for open, use created
+    if is_open:
+        sort_ts = created
+    else:
+        sort_ts = cleared
+    return (is_open, sort_ts, line)
 
 def split_and_sort_threads(lines: List[str]) -> Tuple[list, list]:
     """
-    Returns (open_thread_lines, closed_thread_lines), both sorted by timestamp.
+    Returns (open_thread_lines, closed_thread_lines), both sorted.
+    Open threads: sorted by created time (most recent first).
+    Closed threads: sorted by cleared time (most recent first), with those lacking cleared time at the bottom.
     Only thread lines are included; all section labels and non-thread lines are ignored.
     """
     open_threads = []
     closed_threads = []
     for line in lines:
-        is_open, ts, orig = parse_thread_line(line)
+        is_open, sort_ts, orig = parse_thread_line(line)
         if is_open is None:
             continue
         elif is_open:
-            open_threads.append((ts, orig))
+            open_threads.append((sort_ts, orig))
         else:
-            closed_threads.append((ts, orig))
+            closed_threads.append((sort_ts, orig))
+    # Open: sort by created (most recent first)
     open_threads.sort(key=lambda x: (x[0] or datetime.min), reverse=True)
-    closed_threads.sort(key=lambda x: (x[0] or datetime.min), reverse=True)
+    # Closed: sort by cleared (most recent first), with None at the bottom
+    closed_threads.sort(key=lambda x: (x[0] is not None, x[0] or datetime.min), reverse=True)
     return [l for _, l in open_threads], [l for _, l in closed_threads]
 
 def reorder_threads_file():
