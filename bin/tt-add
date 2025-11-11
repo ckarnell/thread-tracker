@@ -114,7 +114,14 @@ def main():
         return
 
     url = ""
-    if app in {"Google Chrome", "Safari", "Arc"}:
+    channel = ""
+    if app == "Slack":
+        # extract channel name from Slack window title
+        if "—" in title:
+            channel = title.split("—", 1)[0].strip()
+        else:
+            channel = title
+    elif app in {"Google Chrome", "Safari", "Arc"}:
         url = get_browser_url(app)
 
     # Place desc at the beginning, and make it clickable if it's a link or if url is present
@@ -139,7 +146,9 @@ def main():
         parts.append(desc_part)
     if app:
         parts.append(app)
-    if title:
+    if app == "Slack" and channel:
+        parts.append(channel)
+    elif title:
         parts.append(title)
 
     summary = " — ".join([p for p in parts if p])

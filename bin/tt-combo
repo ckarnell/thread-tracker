@@ -260,7 +260,8 @@ def main():
             print(f"Opening link for item {n}: {link}")
             webbrowser.open(link)
         else:
-            print(f"No link attached to item {n}.")
+            print(f"Focused Slack for item {n}.")
+            subprocess.run(["osascript", "-e", 'tell application "Slack" to activate'])
         sys.exit(0)
     elif user_input.isdigit():
         n = int(user_input)
