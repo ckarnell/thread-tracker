@@ -309,8 +309,15 @@ def add_thread(desc: str):
         summary = "Unnamed thread"
     timestamp = datetime.now().isoformat(timespec="seconds")
     entry = f"- [ ] {summary}  <!-- {timestamp} -->\n"
-    with open(threads_file, "a", encoding="utf-8") as f:
+    # Insert at the top of the file
+    try:
+        with open(threads_file, "r", encoding="utf-8") as f:
+            old_lines = f.readlines()
+    except FileNotFoundError:
+        old_lines = []
+    with open(threads_file, "w", encoding="utf-8") as f:
         f.write(entry)
+        f.writelines(old_lines)
     reorder_threads_file()
     print(f"Added thread:\n  {summary}")
     print(f"Stored in: {threads_file}")
@@ -319,7 +326,10 @@ def add_thread(desc: str):
 def main():
     lines = load_threads_lines()
     open_indices, open_tasks, open_links = get_open_threads(lines)
-    user_input: Optional[str] = prompt_combo(open_tasks, open_links)
+    # Reverse for display order: newest at top
+    open_tasks_rev = list(reversed(open_tasks))
+    open_links_rev = list(reversed(open_links))
+    user_input: Optional[str] = prompt_combo(open_tasks_rev, open_links_rev)
     if user_input is None or user_input.strip() == "":
         print("Canceled.")
         sys.exit(0)
@@ -328,10 +338,10 @@ def main():
     # Check for lN pattern to open link
     if user_input.lower().startswith("l") and user_input[1:].isdigit():
         n = int(user_input[1:])
-        if n <= 0 or n > len(open_indices):
-            print(f"Number must be between 1 and {len(open_indices)}.")
+        if n <= 0 or n > len(open_links_rev):
+            print(f"Number must be between 1 and {len(open_links_rev)}.")
             sys.exit(1)
-        link = open_links[n - 1]
+        link = open_links_rev[n - 1]
         if link:
             print(f"Focusing or opening link for item {n}: {link}")
             focus_or_open_chrome_tab(link)
@@ -341,13 +351,13 @@ def main():
         sys.exit(0)
     elif user_input.isdigit():
         n = int(user_input)
-        if n <= 0 or n > len(open_indices):
-            print(f"Number must be between 1 and {len(open_indices)}.")
+        if n <= 0 or n > len(open_tasks_rev):
+            print(f"Number must be between 1 and {len(open_tasks_rev)}.")
             sys.exit(1)
         # Escape for AppleScript dialog
         def escape_applescript(s):
             return s.replace("\\", "\\\\").replace('"', '\\"')
-        task_display = escape_applescript(open_tasks[n-1])
+        task_display = escape_applescript(open_tasks_rev[n-1])
         confirm_script = f'''
         set dialogResult to display dialog "Are you sure you want to mark item #{n} as done?\\n\\n{task_display}" buttons {{"Yes", "Cancel"}} default button "Yes"
         if button returned of dialogResult is "Yes" then
@@ -366,6 +376,7 @@ def main():
         if confirm_result.returncode != 0 or confirm_result.stdout.strip() != "YES":
             print("Canceled marking as done.")
             sys.exit(0)
+        # Minimal fix: use n-1 as the index, since display order matches file order
         new_lines, success = mark_open_thread_done(lines, n - 1)
         if not success:
             print(f"Could not mark thread #{n} as done (out of range?).")
