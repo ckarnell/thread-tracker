@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import sys
+
+SCRIPT_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+sys.path.insert(0, REPO_ROOT)
+
+from common import (
+    load_threads_lines,
+    save_threads_lines,
+    find_thread_line_by_id,
+    append_companion_note,
+    insert_note_link_into_line,
+    extract_desc_text,
+    reorder_threads_file,
+)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Append context to a thread's companion note (creates one if it doesn't exist yet)."
+    )
+    parser.add_argument("id", help="Thread id, from the 'id:' field on its checklist line")
+    parser.add_argument("--append", required=True, help="Markdown content to add to the note")
+    args = parser.parse_args()
+
+    lines = load_threads_lines()
+    line_idx = find_thread_line_by_id(lines, args.id)
+    if line_idx is None:
+        print(f"No thread found with id '{args.id}'.")
+        sys.exit(1)
+
+    desc = extract_desc_text(lines[line_idx]) or args.id
+    note_stem, created_new = append_companion_note(args.id, args.append, desc_fallback=desc)
+
+    if created_new:
+        lines[line_idx] = insert_note_link_into_line(lines[line_idx], note_stem)
+        save_threads_lines(lines)
+        reorder_threads_file()
+
+    print(f"{'Created' if created_new else 'Updated'} companion note: notes/{note_stem}.md")
+
+
+if __name__ == "__main__":
+    main()

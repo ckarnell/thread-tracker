@@ -9,7 +9,7 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, REPO_ROOT)
 
-from common import ensure_threads_file_exists
+from common import ensure_threads_file_exists, new_thread_id, create_companion_note
 
 def main():
     parser = argparse.ArgumentParser(
@@ -19,6 +19,11 @@ def main():
     parser.add_argument("--app", help="Application name (optional)")
     parser.add_argument("--title", help="Window or document title (optional)")
     parser.add_argument("--url", help="URL to associate with the thread (optional)")
+    parser.add_argument(
+        "--context",
+        help="Freeform markdown context (can include [[wiki links]] to other vault notes). "
+        "Stored in a companion note under Threads/notes/ and linked from the checklist line.",
+    )
     args = parser.parse_args()
 
     threads_file = ensure_threads_file_exists()
@@ -49,8 +54,15 @@ def main():
     if not summary:
         summary = "Unnamed thread"
 
+    thread_id = new_thread_id()
+
+    note_stem = None
+    if args.context:
+        note_stem = create_companion_note(thread_id, args.desc, args.context)
+        summary = f"{summary} · [[{note_stem}]]"
+
     timestamp = datetime.now().isoformat(timespec="seconds")
-    entry = f"- [ ] {summary}  <!-- {timestamp} -->\n"
+    entry = f"- [ ] {summary}  <!-- id: {thread_id}, {timestamp} -->\n"
 
     with open(threads_file, "a", encoding="utf-8") as f:
         f.write(entry)
@@ -61,6 +73,9 @@ def main():
 
     print(f"Added thread:\n  {summary}")
     print(f"Stored in: {threads_file}")
+    print(f"Thread id: {thread_id}")
+    if note_stem:
+        print(f"Companion note: notes/{note_stem}.md")
 
 if __name__ == "__main__":
     main()

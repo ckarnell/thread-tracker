@@ -86,12 +86,12 @@ echo "Source bin dir: $BIN_DIR"
 echo "Target bin dir: $TARGET_BIN"
 
 mkdir -p "$TARGET_BIN"
-chmod +x "${BIN_DIR}/tt-add" "${BIN_DIR}/tt-list" "${BIN_DIR}/tt-done" "${BIN_DIR}/tt-combo"
+chmod +x "${BIN_DIR}/tt-add" "${BIN_DIR}/tt-add-headless" "${BIN_DIR}/tt-list" "${BIN_DIR}/tt-done" "${BIN_DIR}/tt-done-headless" "${BIN_DIR}/tt-note-headless" "${BIN_DIR}/tt-combo"
 
 # -------------------------------------------------------------------
 # Check for existing implementations elsewhere in PATH and uninstall if found
 # -------------------------------------------------------------------
-for f in tt-add tt-list tt-done tt-combo; do
+for f in tt-add tt-add-headless tt-list tt-done tt-done-headless tt-note-headless tt-combo; do
   # Find all locations in PATH
   existing_path="$(command -v "$f" 2>/dev/null || true)"
   if [ -n "$existing_path" ] && [ "$existing_path" != "$TARGET_BIN/$f" ]; then
@@ -139,7 +139,10 @@ echo "✅ Setup complete."
 echo "THREADS_FILE is currently: $THREADS_FILE"
 echo
 echo "Try:"
-echo "  tt-add     # capture a thread"
-echo "  tt-list    # list open threads"
-echo "  tt-done 1  # mark the first open thread done"
-echo "  tt-combo   # add or complete a thread in one step"
+echo "  tt-add                                          # capture a thread"
+echo "  tt-list                                         # list open threads"
+echo "  tt-done 1                                       # mark the first open thread done"
+echo "  tt-combo                                        # add or complete a thread in one step"
+echo "  tt-add-headless --desc \"...\" [--context \"...\"]   # scriptable add, optional companion note"
+echo "  tt-note-headless <id> --append \"...\"             # add more context to a thread's note"
+echo "  tt-done-headless --id <id>                       # scriptable close, no GUI prompt"

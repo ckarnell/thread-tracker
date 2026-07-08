@@ -70,18 +70,9 @@ def get_open_thread_indices(lines: List[str]) -> List[int]:
     return indices
 
 
-def mark_open_thread_done(lines: List[str], open_index: int) -> Tuple[List[str], bool]:
-    """
-    open_index is the Nth open thread (0-based among open threads).
-    Returns (new_lines, success_flag).
-    """
+def _mark_line_done(lines: List[str], line_idx: int) -> Tuple[List[str], bool]:
     from datetime import datetime
 
-    open_indices = get_open_thread_indices(lines)
-    if open_index < 0 or open_index >= len(open_indices):
-        return lines, False
-
-    line_idx = open_indices[open_index]
     line = lines[line_idx]
     if "- [ ]" not in line:
         return lines, False
@@ -92,17 +83,21 @@ def mark_open_thread_done(lines: List[str], open_index: int) -> Tuple[List[str],
     m = re.search(r'<!--(.*?)-->', line)
     if m:
         meta = m.group(1).strip()
-        # Check if already has created/cleared fields
+        # Preserve id if present so tt-note-headless/tt-done-headless can still find this thread
+        id_match = re.search(r'id:\s*([0-9a-fA-F]+)', meta)
+        thread_id = id_match.group(1) if id_match else None
         created = None
-        cleared = None
         created_match = re.search(r'created:\s*([0-9T:\-]+)', meta)
         if created_match:
             created = created_match.group(1)
         else:
-            # fallback: use whatever is in meta as created
-            created = meta.split(",")[0].strip()
-        # Compose new meta with both created and cleared
-        new_meta = f"created: {created}, cleared: {now_iso}"
+            # bare ISO timestamp (possibly alongside "id: xxx, ") rather than a labeled field
+            ts_match = re.search(r'(\d{4}-\d{2}-\d{2}T[\d:]+)', meta)
+            created = ts_match.group(1) if ts_match else meta.split(",")[0].strip()
+        if thread_id:
+            new_meta = f"id: {thread_id}, created: {created}, cleared: {now_iso}"
+        else:
+            new_meta = f"created: {created}, cleared: {now_iso}"
         # Replace the old meta with new meta
         new_line = re.sub(r'<!--.*?-->', f'<!-- {new_meta} -->', line)
     else:
@@ -114,6 +109,33 @@ def mark_open_thread_done(lines: List[str], open_index: int) -> Tuple[List[str],
     new_line = new_line.replace("- [ ]", "- [x]", 1)
     lines[line_idx] = new_line
     return lines, True
+
+
+def mark_open_thread_done(lines: List[str], open_index: int) -> Tuple[List[str], bool]:
+    """
+    open_index is the Nth open thread (0-based among open threads).
+    Returns (new_lines, success_flag).
+    """
+    open_indices = get_open_thread_indices(lines)
+    if open_index < 0 or open_index >= len(open_indices):
+        return lines, False
+
+    return _mark_line_done(lines, open_indices[open_index])
+
+
+def find_thread_line_by_id(lines: List[str], thread_id: str) -> Optional[int]:
+    pattern = re.compile(rf'id:\s*{re.escape(thread_id)}\b')
+    for i, line in enumerate(lines):
+        if pattern.search(line):
+            return i
+    return None
+
+
+def mark_thread_done_by_id(lines: List[str], thread_id: str) -> Tuple[List[str], bool]:
+    line_idx = find_thread_line_by_id(lines, thread_id)
+    if line_idx is None:
+        return lines, False
+    return _mark_line_done(lines, line_idx)
 
 # --- New logic for parsing, sorting, and reordering threads ---
 
@@ -209,3 +231,92 @@ def reorder_threads_file():
         new_lines[-1] += '\n'
 
     save_threads_lines(new_lines)
+
+# --- Thread ids and companion notes ---
+# Companion notes live in a "notes" folder alongside the threads file. That folder is
+# never touched by reorder_threads_file() (which only rewrites THREADS_FILE), so unlike
+# the checklist itself it's a safe place for freeform, multi-paragraph content and
+# [[wiki links]] to other vault notes.
+
+import secrets
+
+
+def new_thread_id() -> str:
+    return secrets.token_hex(3)
+
+
+def slugify(text: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug[:50] or "thread"
+
+
+def notes_dir() -> Path:
+    return Path(get_threads_file()).parent / "notes"
+
+
+def find_companion_note_path(thread_id: str) -> Optional[Path]:
+    d = notes_dir()
+    if not d.exists():
+        return None
+    matches = sorted(d.glob(f"{thread_id}-*.md")) + sorted(d.glob(f"{thread_id}.md"))
+    return matches[0] if matches else None
+
+
+def create_companion_note(thread_id: str, desc: str, context: str) -> str:
+    """Creates Threads/notes/<id>-<slug>.md and returns its stem (for use as a [[wikilink]])."""
+    d = notes_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    stem = f"{thread_id}-{slugify(desc)}"
+    path = d / f"{stem}.md"
+    from datetime import datetime
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    title = desc or thread_id
+    content = f"# {title}\n\n*Thread id: {thread_id} · created {timestamp}*\n\n{context.strip()}\n"
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    return stem
+
+
+def append_companion_note(thread_id: str, content: str, desc_fallback: str = "") -> Tuple[str, bool]:
+    """Appends a timestamped section to a thread's note, creating it first if needed.
+
+    Returns (stem, created_new).
+    """
+    path = find_companion_note_path(thread_id)
+    if path is None:
+        stem = create_companion_note(thread_id, desc_fallback or thread_id, content)
+        return stem, True
+
+    from datetime import datetime
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(f"\n---\n*Update — {timestamp}*\n\n{content.strip()}\n")
+    return path.stem, False
+
+
+def insert_note_link_into_line(line: str, note_stem: str) -> str:
+    link_md = f"[[{note_stem}]]"
+    if link_md in line:
+        return line
+    m = re.search(r'<!--.*?-->', line)
+    if not m:
+        return line.rstrip('\n') + f"  · {link_md}\n"
+    before = line[:m.start()].rstrip()
+    comment = m.group(0)
+    after = line[m.end():]
+    return f"{before} · {link_md}  {comment}{after}"
+
+
+def extract_desc_text(line: str) -> Optional[str]:
+    content = line.strip()
+    if content.startswith("- [ ]") or content.startswith("- [x]"):
+        content = content[5:].strip()
+    if "<!--" in content:
+        content = content[:content.index("<!--")].strip()
+    m = re.match(r"\[\*\*(.*?)\*\*\]\([^)]+\)", content)
+    if m:
+        return m.group(1)
+    m = re.match(r"\*\*(.*?)\*\*", content)
+    if m:
+        return m.group(1)
+    return content or None

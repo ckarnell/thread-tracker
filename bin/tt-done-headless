@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import sys
+
+SCRIPT_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+sys.path.insert(0, REPO_ROOT)
+
+from common import (
+    load_threads_lines,
+    save_threads_lines,
+    mark_open_thread_done,
+    mark_thread_done_by_id,
+    reorder_threads_file,
+)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Mark a thread done without a GUI prompt (LLM/automation mode)."
+    )
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--id", help="Thread id to close")
+    group.add_argument(
+        "--index", type=int, help="1-based position among open threads, as shown by tt-list"
+    )
+    args = parser.parse_args()
+
+    lines = load_threads_lines()
+    if args.id:
+        new_lines, ok = mark_thread_done_by_id(lines, args.id)
+        label = args.id
+    else:
+        new_lines, ok = mark_open_thread_done(lines, args.index - 1)
+        label = f"#{args.index}"
+
+    if not ok:
+        print(f"Could not find an open thread matching {label}.")
+        sys.exit(1)
+
+    save_threads_lines(new_lines)
+    reorder_threads_file()
+    print(f"Marked thread {label} as done.")
+
+
+if __name__ == "__main__":
+    main()

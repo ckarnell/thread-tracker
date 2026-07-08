@@ -13,13 +13,44 @@ Alfred or the terminal while you’re in the middle of another task.
   optional note, and appends a `- [ ]` checklist item with an ISO8601 timestamp.
 - **`tt-list`** prints the open checklist items (those that still contain `- [ ]`).
 - **`tt-done N`** converts the Nth open item to `- [x]` so you can keep a history of what
-  was completed.
+  was completed. (This currently confirms via a macOS dialog — see `tt-done-headless`
+  below for a scriptable equivalent.)
 - **`tt-combo`** shows open threads, allows you to close or open a new one, allows you to
   open a link to a thread if applicable.
 - **`tjob` shell helper** (see [`shell/tjob.zsh`](shell/tjob.zsh)) wraps a long-running
   command, logging it to the threads file before execution.
 - Optional [Alfred workflow](alfred/create_workflow.md) so you can trigger `tt-add`
   with a hotkey from anywhere on macOS.
+
+Every thread created by `tt-add`, `tt-add-headless`, or `tt-combo` gets a short stable
+`id` (e.g. `id: a1b2c3`) in its HTML comment, independent of its position in the file.
+
+### Headless / automation commands
+
+These take explicit flags instead of prompting, so an LLM or script can drive them
+directly:
+
+- **`tt-add-headless --desc "..." [--app "..."] [--title "..."] [--url "..."]`** — add a
+  thread without any GUI interaction.
+- **`tt-add-headless --desc "..." --context "<markdown>"`** — same, but also creates a
+  **companion note** under `Threads/notes/<id>-<slug>.md` holding the given markdown
+  (freeform text, checklists, `[[wiki links]]` to other vault notes) and links it from
+  the checklist line. Use this for threads that need real context rather than a
+  one-line summary.
+- **`tt-note-headless <id> --append "<markdown>"`** — add more context to a thread's
+  companion note later (creates the note if it doesn't exist yet). Because the
+  `Threads/notes/` folder is never rewritten by `reorder_threads_file()`, it's safe to
+  edit those files by hand too — unlike the checklist file itself (see below), nothing
+  will silently strip content you add there.
+- **`tt-done-headless --id <id>`** (or `--index N`) — mark a thread done without the
+  confirmation dialog `tt-done` uses.
+
+> **Why not just edit `threads.md` directly?** Every command that touches the file calls
+> `reorder_threads_file()`, which rebuilds it from scratch keeping only lines that match
+> the single-line `- [ ] ... <!-- ... -->` checklist format. Anything else you add
+> directly to `threads.md` — a nested bullet, a freeform paragraph, a standalone
+> `[[link]]` — will be silently dropped the next time any `tt-*` command runs. Put that
+> content in a companion note instead.
 
 > **Platform note:** `tt-add` relies on `osascript`, so capturing the active application
 > and window title currently only works on macOS. The other commands are cross-platform.
@@ -95,6 +126,10 @@ By default, Threads Tracker stores entries in `~/threads.md`. You can override t
 
 Whenever a command runs, it ensures the file exists, creating it with a `# Open Threads`
 heading if necessary.
+
+Companion notes (see `--context` above) are stored in a `notes/` folder next to
+`THREADS_FILE` — e.g. if `THREADS_FILE` is `.../Threads/threads.md`, notes land in
+`.../Threads/notes/`.
 
 ---
 

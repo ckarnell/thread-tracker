@@ -16,6 +16,7 @@ from common import (
     mark_open_thread_done,
     ensure_threads_file_exists,
     reorder_threads_file,
+    new_thread_id,
 )
 
 import re
@@ -307,8 +308,9 @@ def add_thread(desc: str):
     summary = " — ".join([p for p in parts if p])
     if not summary:
         summary = "Unnamed thread"
+    thread_id = new_thread_id()
     timestamp = datetime.now().isoformat(timespec="seconds")
-    entry = f"- [ ] {summary}  <!-- {timestamp} -->\n"
+    entry = f"- [ ] {summary}  <!-- id: {thread_id}, {timestamp} -->\n"
     # Insert at the top of the file
     try:
         with open(threads_file, "r", encoding="utf-8") as f:
